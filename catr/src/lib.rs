@@ -30,33 +30,26 @@ pub fn get_args() -> MyResult<Config> {
                 .help("Input file(s)")
                 .required(true)
                 .default_value("-")
-                .required(true)
-                .min_values(1),
+                .multiple(true),
         )
         .arg(
             Arg::with_name("number")
                 .short("n")
+                .long("number")
                 .help("Number lines")
-                .takes_value(false),
+                .takes_value(false)
+                .conflicts_with("number_nonblank"),
         )
         .arg(
-            Arg::with_name("number-nonblank")
+            Arg::with_name("number_nonblank")
                 .short("b")
-                .help("Number nonblank lines")
+                .help("Number non-blank lines")
                 .takes_value(false),
         )
         .get_matches();
     Ok(Config {
         files: matches.values_of_lossy("file").unwrap(),
-        number_lines: if matches.is_present("number") {
-            true
-        } else {
-            false
-        },
-        number_noblank_lines: if matches.is_present("number-nonblank") {
-            true
-        } else {
-            false
-        },
+        number_lines: matches.is_present("number"),
+        number_noblank_lines: matches.is_present("number-nonblank"),
     })
 }
