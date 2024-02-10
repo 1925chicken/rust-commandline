@@ -1,4 +1,8 @@
-use std::error::{self, Error};
+use std::{
+    error::Error,
+    fs::{read, File},
+    io::{self, BufRead, BufReader},
+};
 
 use clap::{App, Arg};
 
@@ -12,13 +16,61 @@ pub struct Config {
 type MyResult<T> = Result<T, Box<dyn Error>>;
 
 pub fn run(config: Config) -> MyResult<()> {
-    if config.number_lines && config.number_noblank_lines {
-        return Err("the argument '--number_nonblank' cannot be used with '--number'".into());
+    for filename in config.files {
+        match open(&filename) {
+            Err(err) => eprintln!("Failed to open {}: {}", filename, err),
+            Ok(file) => readlines(config.number_lines, config.number_noblank_lines, file),
+        }
     }
-    dbg!(config);
     Ok(())
 }
 
+fn readlines(number_lines: bool, number_noblank_lines: bool, file: Box<dyn BufRead>) {
+    let reader = BufReader::new(file);
+    if number_lines {
+        readlines_with_number(reader);
+        return;
+    }
+
+    if number_noblank_lines {
+        readlines_with_number_no_blank_line(reader);
+        return;
+    }
+
+    readlines_no_option(reader);
+}
+
+fn readlines_no_option(reader: BufReader<Box<dyn BufRead>>) {
+    for line in reader.lines() {
+        println!("{}", line.unwrap());
+    }
+}
+
+fn readlines_with_number(reader: BufReader<Box<dyn BufRead>>) {
+    for (line_num, line) in reader.lines().enumerate() {
+        println!("{:>6}\t{}", line_num + 1, line.unwrap());
+    }
+}
+
+fn readlines_with_number_no_blank_line(reader: BufReader<Box<dyn BufRead>>) {
+    let mut cnt = 0;
+    for line in reader.lines() {
+        let l = line.unwrap();
+        if l.is_empty() {
+            println!();
+            continue;
+        }
+        cnt += 1;
+        println!("{:>6}\t{}", cnt, l);
+    }
+}
+
+fn open(filename: &str) -> MyResult<Box<dyn BufRead>> {
+    match filename {
+        "-" => Ok(Box::new(BufReader::new(io::stdin()))),
+        _ => Ok(Box::new(BufReader::new(File::open(filename)?))),
+    }
+}
 pub fn get_args() -> MyResult<Config> {
     let matches = App::new("catr")
         .version("0.1.0")
@@ -43,6 +95,7 @@ pub fn get_args() -> MyResult<Config> {
         .arg(
             Arg::with_name("number_nonblank")
                 .short("b")
+                .long("number-nonblank")
                 .help("Number non-blank lines")
                 .takes_value(false),
         )
@@ -50,6 +103,6 @@ pub fn get_args() -> MyResult<Config> {
     Ok(Config {
         files: matches.values_of_lossy("file").unwrap(),
         number_lines: matches.is_present("number"),
-        number_noblank_lines: matches.is_present("number-nonblank"),
+        number_noblank_lines: matches.is_present("number_nonblank"),
     })
 }
